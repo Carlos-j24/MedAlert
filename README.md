@@ -2,6 +2,14 @@
 
 Aplicación web para que un **cuidador** administre los medicamentos, recordatorios y citas médicas de una o varias personas a su cargo (pacientes). Genera recordatorios automáticamente, envía notificaciones por WhatsApp, y produce reportes en PDF por paciente.
 
+## Capturas
+
+![Demo de MedAlert](docs/screenshots/demo.gif)
+
+| Home | Pacientes | Recordatorios |
+|---|---|---|
+| ![Home](docs/screenshots/home.png) | ![Pacientes](docs/screenshots/pacientes.png) | ![Recordatorios](docs/screenshots/recordatorios.png) |
+
 ## Funcionalidades
 
 - Registro de cuidador con datos personales (nombre, identificación, género)
