@@ -4,11 +4,11 @@ Aplicación web para que un **cuidador** administre los medicamentos, recordator
 
 ## Capturas
 
-![Demo de MedAlert](docs/screenshots/demo.gif)
+![Demo de MedAlert](docs/demo.gif)
 
 | Home | Pacientes | Recordatorios |
 |---|---|---|
-| ![Home](docs/screenshots/home.png) | ![Pacientes](docs/screenshots/pacientes.png) | ![Recordatorios](docs/screenshots/recordatorios.png) |
+| ![Home](docs/home.png) | ![Pacientes](docs/pacientes.png) | ![Recordatorios](docs/recordatorios.png) |
 
 ## Funcionalidades
 
