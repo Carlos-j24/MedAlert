@@ -1,7 +1,13 @@
 import datetime
+import io
+import warnings
+from zoneinfo import ZoneInfo
 from unittest.mock import patch
 
 from django.contrib.auth.models import User
+from django.core.management import call_command
+from django.test import TestCase, override_settings
+from django.utils import timezone
 from django.contrib.auth.tokens import default_token_generator
 from django.core import mail
 from django.core.cache import cache
@@ -369,7 +375,7 @@ class BusquedaTests(APITestCase):
         MedicalAppointment.objects.create(
             patient=self.paciente,
             tipo='consulta',
-            fecha=datetime.date.today() + datetime.timedelta(days=5),
+            fecha=timezone.localdate() + datetime.timedelta(days=5),
             hora=datetime.time(10, 0),
             lugar='Clínica Central', direccion='Calle 1', barrio='Centro',
             piso='2', consultorio='204',
@@ -379,7 +385,7 @@ class BusquedaTests(APITestCase):
         MedicalAppointment.objects.create(
             patient=self.paciente,
             tipo='examen',
-            fecha=datetime.date.today() + datetime.timedelta(days=8),
+            fecha=timezone.localdate() + datetime.timedelta(days=8),
             hora=datetime.time(9, 0),
             lugar='Lab Nacional', direccion='Calle 2', barrio='Norte',
             piso='1', consultorio='101',
@@ -535,7 +541,7 @@ class GeneracionRecordatoriosTests(APITestCase):
         self.assertEqual(response.data['frecuencia'], 'Cada 8 horas')
         self.assertEqual(
             response.data['fecha_fin'],
-            (datetime.date.today() + datetime.timedelta(days=5)).isoformat()
+            (timezone.localdate() + datetime.timedelta(days=5)).isoformat()
         )
 
         recordatorios = Reminder.objects.filter(
@@ -584,7 +590,7 @@ class GeneracionRecordatoriosTests(APITestCase):
             medication_id=response.data['id']
         ).first()
 
-        fecha_esperada = datetime.date.today() + datetime.timedelta(days=10)
+        fecha_esperada = timezone.localdate() + datetime.timedelta(days=10)
 
         self.assertEqual(recordatorio.fecha_fin, fecha_esperada)
 
@@ -615,7 +621,7 @@ class GeneracionRecordatoriosCitaTests(APITestCase):
         self.client.force_authenticate(user=self.cuidador)
 
     def test_cita_con_recordatorio_genera_dos_recordatorios(self):
-        fecha_cita = datetime.date.today() + datetime.timedelta(days=10)
+        fecha_cita = timezone.localdate() + datetime.timedelta(days=10)
 
         response = self.client.post('/api/appointments/', {
             'patient': self.paciente.id,
@@ -651,7 +657,7 @@ class GeneracionRecordatoriosCitaTests(APITestCase):
         self.assertEqual(recordatorio_dia.fecha, fecha_cita)
 
     def test_cita_sin_recordatorio_no_genera_ninguno(self):
-        fecha_cita = datetime.date.today() + datetime.timedelta(days=10)
+        fecha_cita = timezone.localdate() + datetime.timedelta(days=10)
 
         response = self.client.post('/api/appointments/', {
             'patient': self.paciente.id,
@@ -884,3 +890,112 @@ class AccesoSinAutenticacionTests(APITestCase):
         response = self.client.get('/api/patients/')
 
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+# =====================================
+# ZONA HORARIA (fecha y hora local de Bogotá)
+# =====================================
+
+# 20:00 del 15/03/2030 en Bogotá = 01:00 del 16/03/2030 en UTC: la fecha
+# local y la fecha UTC son distintas, que es justo el caso que fallaba.
+BOGOTA = ZoneInfo('America/Bogota')
+NOCHE_BOGOTA = datetime.datetime(2030, 3, 15, 20, 0, 5, tzinfo=BOGOTA)
+
+
+def reloj(momento):
+    """Fija el reloj de Django (timezone.now) en un instante concreto."""
+    return patch('django.utils.timezone.now', return_value=momento.astimezone(datetime.timezone.utc))
+
+
+@override_settings(TIME_ZONE='America/Bogota')
+class RecordatoriosWhatsAppZonaHorariaTests(TestCase):
+
+    def setUp(self):
+        cuidador = User.objects.create_user(username='cuidador_tz', password='x')
+        CaregiverProfile.objects.create(
+            user=cuidador, identificacion='1', genero='femenino',
+            whatsapp_numero='+573000000000', whatsapp_apikey='clave',
+        )
+        self.paciente = Patient.objects.create(
+            cuidador=cuidador, nombres='Ana', apellidos='Gómez',
+            identificacion='2', genero='femenino',
+        )
+        medicamento = Medication.objects.create(patient=self.paciente, nombre='Paracetamol', dosis='500mg')
+        self.noche = Reminder.objects.create(
+            patient=self.paciente, medication=medicamento,
+            hora=datetime.time(20, 0), frecuencia='Cada 12 horas',
+        )
+
+    def ejecutar(self, momento, stdout=None):
+        """Ejecuta el comando una vez a la hora indicada y devuelve cuántos avisos envió."""
+        with reloj(momento), patch(
+            'medications.management.commands.enviar_recordatorios_whatsapp.enviar_whatsapp'
+        ) as enviar:
+            call_command('enviar_recordatorios_whatsapp', stdout=stdout or io.StringIO())
+        return enviar.call_count
+
+    def test_envia_a_la_hora_local_y_guarda_el_instante_correcto(self):
+        with warnings.catch_warnings(record=True) as avisos:
+            warnings.simplefilter('always')
+            enviados = self.ejecutar(NOCHE_BOGOTA)
+
+        self.assertEqual(enviados, 1)
+        self.noche.refresh_from_db()
+        self.assertEqual(self.noche.ultima_notificacion, NOCHE_BOGOTA)
+        self.assertFalse([a for a in avisos if 'naive datetime' in str(a.message)])
+
+    def test_no_reenvia_en_el_mismo_minuto_pero_si_al_dia_siguiente(self):
+        self.assertEqual(self.ejecutar(NOCHE_BOGOTA), 1)
+        self.assertEqual(self.ejecutar(NOCHE_BOGOTA + datetime.timedelta(seconds=40)), 0)
+        self.assertEqual(self.ejecutar(NOCHE_BOGOTA + datetime.timedelta(days=1)), 1)
+
+    def test_una_salida_sin_utf8_no_detiene_el_comando(self):
+        # Simula la salida redirigida a un archivo en Windows (cp1252 no tiene el emoji 💊).
+        otro = Medication.objects.create(patient=self.paciente, nombre='Ibuprofeno', dosis='400mg')
+        Reminder.objects.create(patient=self.paciente, medication=otro, hora=datetime.time(20, 0), frecuencia='x')
+        salida = io.TextIOWrapper(io.BytesIO(), encoding='cp1252')
+
+        self.assertEqual(self.ejecutar(NOCHE_BOGOTA, stdout=salida), 2)
+
+
+@override_settings(TIME_ZONE='America/Bogota')
+class FechaFinZonaHorariaTests(APITestCase):
+
+    def setUp(self):
+        self.cuidador = User.objects.create_user(username='cuidador_fecha_fin', password='x')
+        self.paciente = Patient.objects.create(
+            cuidador=self.cuidador, nombres='Ana', apellidos='Gómez',
+            identificacion='3', genero='femenino',
+        )
+        self.client.force_authenticate(user=self.cuidador)
+
+    def test_fecha_fin_usa_la_fecha_local_al_crear_y_al_editar(self):
+        with reloj(NOCHE_BOGOTA):
+            creado = self.client.post('/api/medications/', {
+                'patient': self.paciente.id, 'nombre': 'Paracetamol', 'dosis': '500mg',
+                'frecuencia_horas': 8, 'duracion_cantidad': 5, 'duracion_unidad': 'dias',
+                'hora_inicio': '08:00:00',
+            })
+        self.assertEqual(creado.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(creado.data['fecha_fin'], '2030-03-20')
+
+        with reloj(NOCHE_BOGOTA + datetime.timedelta(days=1)):
+            editado = self.client.patch(f"/api/medications/{creado.data['id']}/", {'duracion_cantidad': 5})
+        self.assertEqual(editado.status_code, status.HTTP_200_OK)
+        self.assertEqual(editado.data['fecha_fin'], '2030-03-20')
+
+
+@override_settings(TIME_ZONE='America/Bogota')
+class PdfZonaHorariaTests(TestCase):
+
+    def test_las_fechas_del_pdf_se_muestran_en_hora_local(self):
+        from medications.pdf import _fecha_local
+        self.assertEqual(_fecha_local(NOCHE_BOGOTA.astimezone(datetime.timezone.utc), '%d/%m/%Y %H:%M'), '15/03/2030 20:00')
+
+    def test_dias_restantes_y_estado_usan_la_fecha_local(self):
+        from medications.pdf import _dias_restantes, _estado_tratamiento
+        hoy = Medication(fecha_fin=datetime.date(2030, 3, 15))
+        ayer = Medication(fecha_fin=datetime.date(2030, 3, 14))
+        with reloj(NOCHE_BOGOTA):
+            self.assertEqual(_dias_restantes(hoy), 'Termina hoy')
+            self.assertEqual(_estado_tratamiento(ayer), 'Finalizado')
