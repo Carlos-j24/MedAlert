@@ -43,8 +43,9 @@ cd MedAlert
 
 ### 2. Backend
 
+El entorno virtual se crea en la raíz del proyecto (`MedAlert/venv`):
+
 ```bash
-cd backend
 python -m venv venv
 
 # Windows
@@ -52,6 +53,7 @@ python -m venv venv
 # macOS/Linux
 source venv/bin/activate
 
+cd backend
 pip install -r requirements.txt
 ```
 
