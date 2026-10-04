@@ -16,4 +16,4 @@ Memoria del proyecto entre sesiones. Máximo ~50 líneas: resume o elimina lo qu
 - El comando de WhatsApp se caía al escribir 💊 si la salida iba a un archivo cp1252; ahora reemplaza los caracteres que no caben.
 
 ## Próximos pasos
-- Corregir el README: el venv está en la raíz, no en `backend/venv`.
+- Nada pendiente por ahora.
