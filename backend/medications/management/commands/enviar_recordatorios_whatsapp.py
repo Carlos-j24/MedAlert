@@ -1,7 +1,7 @@
 import time
-import datetime
 
 from django.core.management.base import BaseCommand
+from django.utils import timezone
 
 from medications.models import Reminder
 from medications.whatsapp import enviar_whatsapp, WhatsAppError
@@ -51,7 +51,8 @@ class Command(BaseCommand):
 
     def _revisar(self):
 
-        ahora = datetime.datetime.now()
+        # Hora local según TIME_ZONE, con zona: no depende del reloj del equipo.
+        ahora = timezone.localtime()
         hoy = ahora.date()
 
         recordatorios = Reminder.objects.filter(
@@ -107,18 +108,33 @@ class Command(BaseCommand):
                 update_fields=['ultima_notificacion']
             )
 
-            self.stdout.write(
-                self.style.SUCCESS(
-                    f'Enviado a {cuidador.username}: {mensaje}'
-                )
+            self._escribir(
+                f'Enviado a {cuidador.username}: {mensaje}',
+                self.style.SUCCESS,
             )
 
         except WhatsAppError as e:
 
+            self._escribir(
+                f'Error enviando a {cuidador.username}: {e}',
+                self.style.ERROR,
+            )
+
+    def _escribir(self, texto, estilo):
+
+        # La salida puede ir a un archivo con una codificación sin
+        # emojis (p. ej. cp1252 en Windows). Se reemplazan los
+        # caracteres que no caben en vez de detener el comando.
+        try:
+
+            self.stdout.write(estilo(texto))
+
+        except UnicodeEncodeError:
+
+            codificacion = getattr(self.stdout, 'encoding', None) or 'ascii'
+
             self.stdout.write(
-                self.style.ERROR(
-                    f'Error enviando a {cuidador.username}: {e}'
-                )
+                estilo(texto.encode(codificacion, 'replace').decode(codificacion))
             )
 
     def _mensaje(self, recordatorio):

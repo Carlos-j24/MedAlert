@@ -3,6 +3,7 @@ import datetime
 from rest_framework import serializers
 from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
+from django.utils import timezone
 from django.core.exceptions import ValidationError as DjangoValidationError
 
 from .models import (
@@ -86,7 +87,7 @@ class MedicationSerializer(serializers.ModelSerializer):
 
     def _calcular_fecha_fin(self, duracion_cantidad, duracion_unidad, desde=None):
 
-        desde = desde or datetime.date.today()
+        desde = desde or timezone.localdate()
 
         if duracion_unidad == 'meses':
             dias = duracion_cantidad * 30
@@ -110,7 +111,7 @@ class MedicationSerializer(serializers.ModelSerializer):
             ).time()
 
         hora_actual = datetime.datetime.combine(
-            datetime.date.today(),
+            timezone.localdate(),
             hora_inicio
         )
 
@@ -169,7 +170,7 @@ class MedicationSerializer(serializers.ModelSerializer):
                 validated_data.get(
                     'duracion_unidad', instance.duracion_unidad
                 ),
-                desde=instance.created_at.date(),
+                desde=timezone.localdate(instance.created_at),
             )
 
         return super().update(instance, validated_data)
