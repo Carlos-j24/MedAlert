@@ -127,7 +127,9 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+# Zona horaria de los recordatorios: las horas que guarda el cuidador son
+# hora local. Configurable por entorno; por defecto, Colombia.
+TIME_ZONE = os.environ.get('DJANGO_TIME_ZONE', 'America/Bogota')
 
 USE_I18N = True
 

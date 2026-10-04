@@ -1,7 +1,7 @@
 import os
-import datetime
 from io import BytesIO
 
+from django.utils import timezone
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import cm
 from reportlab.lib import colors
@@ -89,9 +89,14 @@ def _estilos():
     return styles
 
 
+def _fecha_local(valor, formato):
+    """Formatea una fecha y hora guardada en UTC en la hora local (TIME_ZONE)."""
+    return timezone.localtime(valor).strftime(formato)
+
+
 def _estado_tratamiento(medicamento):
 
-    hoy = datetime.date.today()
+    hoy = timezone.localdate()
 
     if medicamento.fecha_fin and medicamento.fecha_fin < hoy:
         return 'Finalizado'
@@ -111,7 +116,7 @@ def _dias_restantes(medicamento):
     if not medicamento.fecha_fin:
         return '—'
 
-    dias = (medicamento.fecha_fin - datetime.date.today()).days
+    dias = (medicamento.fecha_fin - timezone.localdate()).days
 
     if dias < 0:
         return 'Finalizado'
@@ -181,7 +186,7 @@ def generar_pdf_paciente(patient, cuidador):
     story.append(Spacer(1, 0.3 * cm))
 
     story.append(Paragraph(
-        f'Generado el {datetime.date.today().strftime("%d/%m/%Y")}',
+        f'Generado el {timezone.localdate().strftime("%d/%m/%Y")}',
         styles['Subtitulo']
     ))
 
@@ -230,7 +235,7 @@ def generar_pdf_paciente(patient, cuidador):
     story.append(Table(
         [
             ['Nombre:', f'{patient.nombres} {patient.apellidos}', 'Identificación:', patient.identificacion],
-            ['Género:', GENERO_LEGIBLE.get(patient.genero, patient.genero), 'Registrado el:', patient.created_at.strftime('%d/%m/%Y')],
+            ['Género:', GENERO_LEGIBLE.get(patient.genero, patient.genero), 'Registrado el:', _fecha_local(patient.created_at, '%d/%m/%Y')],
         ],
         colWidths=[3 * cm, 6 * cm, 3 * cm, 5 * cm],
         style=TableStyle([
@@ -296,7 +301,7 @@ def generar_pdf_paciente(patient, cuidador):
 
             filas.append([
                 item.medication.nombre,
-                item.tomado_en.strftime('%d/%m/%Y %H:%M'),
+                _fecha_local(item.tomado_en, '%d/%m/%Y %H:%M'),
             ])
 
         tabla = Table(
