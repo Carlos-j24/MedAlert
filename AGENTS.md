@@ -19,7 +19,8 @@ App web para que un cuidador gestione medicamentos, recordatorios y citas de sus
 
 ## Reglas de dominio / trampas
 - El venv está en la raíz (`MedAlert/venv`), no en `backend/venv` como dice el README.
-- Hora: `TIME_ZONE='UTC'` con `USE_TZ=True`, pero `Reminder.hora` es hora local y el comando de WhatsApp usa `datetime.now()`. Cuidado al mezclar fechas UTC y locales (Bogotá es UTC-5).
+- Fechas y horas: usa siempre `timezone.localdate()` y `timezone.localtime()`, nunca `date.today()` ni `datetime.now()`. `TIME_ZONE` sale de `DJANGO_TIME_ZONE` (por defecto `America/Bogota`) y `Reminder.hora` es hora local.
+- En tests, fija el reloj con `reloj()` de `tests.py` (parchea `django.utils.timezone.now`); el CI corre en UTC.
 - Un recordatorio de medicamento no se envía si su `fecha_fin` ya pasó.
 - Sin `DJANGO_SECRET_KEY` en `backend/.env`, Django no arranca.
 
