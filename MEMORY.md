@@ -14,6 +14,7 @@ Memoria del proyecto entre sesiones. Máximo ~50 líneas: resume o elimina lo qu
 - Zona horaria (2026-10-03): con `TIME_ZONE='UTC'` y `date.today()`/`datetime.now()`, la fecha de fin de un medicamento editado salía un día tarde si se creó después de las 19:00, el PDF mostraba horas en UTC y todo dependía del reloj del equipo. Corregido con `TIME_ZONE` configurable y `timezone.localdate()`/`localtime()`.
 - La sospecha de recordatorios duplicados o saltados era falsa: el desfase se compensaba solo. Lección: reproducir con un test antes de afirmar un fallo.
 - El comando de WhatsApp se caía al escribir 💊 si la salida iba a un archivo cp1252; ahora reemplaza los caracteres que no caben.
+- Capturas del README (2026-10-05): las antiguas mostraban nombres y cédulas reales. Ahora usan solo datos inventados (pacientes DEMO-001/002, médicos "Demo"), sembrados por la API sobre una base de datos de demo aparte. Nunca hacer capturas con la base de datos real. Las imágenes antiguas siguen en el historial de git.
 
 ## Próximos pasos
 - Nada pendiente por ahora.
