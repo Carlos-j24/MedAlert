@@ -4,6 +4,8 @@ Aplicación web para que un **cuidador** administre los medicamentos, recordator
 
 ## Capturas
 
+_Capturas hechas con datos de demostración inventados._
+
 ![Demo de MedAlert](docs/demo.gif)
 
 | Home | Pacientes | Recordatorios |
